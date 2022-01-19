@@ -183,7 +183,7 @@ contract Stake is Ownable, ReentrancyGuard {
             uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
 
             if (pending > 0) {
-                sendPending(pending);
+                safeTokenTransfer(msg.sender, pending);
                 emit Claim(msg.sender, pending);
             }
         }
@@ -195,18 +195,15 @@ contract Stake is Ownable, ReentrancyGuard {
      * @notice SendPending tokens to claimer
      * @param pending: amount to claim
      */
-    function sendPending(uint256 pending) internal {
-        if (rewardMaxTxAmount == 0) {
-            rewardToken.safeTransfer(address(msg.sender), pending);
+    function safeTokenTransfer(address _to, uint256 _amount) internal {
+        uint256 rewardTokenBalance = rewardToken.balanceOf(address(this));
+        if (_amount > rewardTokenBalance) {
+            rewardToken.safeTransfer(address(msg.sender), rewardTokenBalance);
         } else {
-            while (pending > 0) {
-                uint256 amount = pending > rewardMaxTxAmount ? rewardMaxTxAmount : pending;
-                pending = pending.sub(amount);
-                rewardToken.safeTransfer(address(msg.sender), amount);
-            }
+            rewardToken.safeTransfer(address(msg.sender), _amount);
         }
     }
-
+    
     /*
      * @notice Withdraw staked tokens without caring about rewards
      * @dev Needs to be for emergency.
