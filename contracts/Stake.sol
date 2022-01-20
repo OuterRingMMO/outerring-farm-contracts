@@ -107,7 +107,7 @@ contract Stake is Ownable, ReentrancyGuard {
 
     /*
      * @notice Deposit staked tokens and collect reward tokens (if any)
-     * @param _amount: amount to withdraw (in rewardToken)
+     * @param _amount: amount to deposit (in stakedToken)
      */
     function deposit(uint256 _amount) external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
