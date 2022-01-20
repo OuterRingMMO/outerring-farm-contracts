@@ -7,13 +7,9 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-
 contract Stake is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
-
-    // Whether it is initialized
-    bool public isInitialized;
 
     // Accrued token per share
     uint256 public accTokenPerShare;
@@ -29,9 +25,6 @@ contract Stake is Ownable, ReentrancyGuard {
 
     // REWARD tokens created per block.
     uint256 public rewardPerBlock;
-
-    // Max amount allowed to be transferred, 0 = no limit
-    uint256 public rewardMaxTxAmount = 0;
 
     // Lockup duration for deposit
     uint256 public lockUpDuration;
@@ -58,8 +51,8 @@ contract Stake is Ownable, ReentrancyGuard {
     mapping(address => UserInfo) public userInfo;
 
     struct UserInfo {
-        uint256 amount;       // Staked tokens the user has provided
-        uint256 rewardDebt;   // Reward debt
+        uint256 amount; // Staked tokens the user has provided
+        uint256 rewardDebt; // Reward debt
         uint256 firstDeposit; // First deposit before withdraw
     }
 
@@ -73,15 +66,17 @@ contract Stake is Ownable, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 amount);
 
     /*
-     * @notice Initialize the contract
+     * @notice Constructor of the contract
      * @param _stakedToken: staked token address
      * @param _rewardToken: reward token address
      * @param _rewardPerBlock: reward per block (in rewardToken)
      * @param _startBlock: start block
      * @param _endBlock: end block
-     * @param _admin: admin address with ownership
+     * @param _lockUpDuration: duration for the deposit
+     * @param _withdrawFee: fee for early withdraw
+     * @param _feeAddress: address where fees for early withdraw will be send
      */
-    function initialize(
+    constructor(
         IERC20 _stakedToken,
         IERC20 _rewardToken,
         uint256 _rewardPerBlock,
@@ -90,10 +85,7 @@ contract Stake is Ownable, ReentrancyGuard {
         uint256 _lockUpDuration,
         uint256 _withdrawFee,
         address _feeAddress
-    ) external {
-        require(!isInitialized, "Already initialized");
-        isInitialized = true;
-
+    ) {
         stakedToken = _stakedToken;
         rewardToken = _rewardToken;
         rewardPerBlock = _rewardPerBlock;
@@ -123,19 +115,31 @@ contract Stake is Ownable, ReentrancyGuard {
         _updatePool();
 
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 pending = user
+                .amount
+                .mul(accTokenPerShare)
+                .div(PRECISION_FACTOR)
+                .sub(user.rewardDebt);
             if (pending > 0) {
-                sendPending(pending);
+                safeTokenTransfer(msg.sender, pending);
             }
         }
 
         if (_amount > 0) {
             user.amount = user.amount.add(_amount);
-            stakedToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.firstDeposit = user.firstDeposit == 0 ? block.timestamp : user.firstDeposit;
+            stakedToken.safeTransferFrom(
+                address(msg.sender),
+                address(this),
+                _amount
+            );
+            user.firstDeposit = user.firstDeposit == 0
+                ? block.timestamp
+                : user.firstDeposit;
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = user.amount.mul(accTokenPerShare).div(
+            PRECISION_FACTOR
+        );
 
         emit Deposit(msg.sender, _amount);
     }
@@ -150,23 +154,33 @@ contract Stake is Ownable, ReentrancyGuard {
         require(user.amount >= _amount, "Amount to withdraw too high");
         _updatePool();
 
-        uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+        uint256 pending = user
+            .amount
+            .mul(accTokenPerShare)
+            .div(PRECISION_FACTOR)
+            .sub(user.rewardDebt);
 
         user.amount = user.amount.sub(_amount);
         uint256 _amountToSend = _amount;
-        if(block.timestamp < (user.firstDeposit + lockUpDuration)) {
-            uint256 _feeAmountToSend = _amountToSend.mul(withdrawFee).div(10000);
+        if (block.timestamp < (user.firstDeposit + lockUpDuration)) {
+            uint256 _feeAmountToSend = _amountToSend.mul(withdrawFee).div(
+                10000
+            );
             stakedToken.safeTransfer(address(feeAddress), _feeAmountToSend);
             _amountToSend = _amountToSend - _feeAmountToSend;
         }
         stakedToken.safeTransfer(address(msg.sender), _amountToSend);
-        user.firstDeposit = user.firstDeposit == 0 ? block.timestamp : user.firstDeposit;
+        user.firstDeposit = user.firstDeposit == 0
+            ? block.timestamp
+            : user.firstDeposit;
 
         if (pending > 0) {
-            sendPending(pending);
+            safeTokenTransfer(msg.sender, pending);
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = user.amount.mul(accTokenPerShare).div(
+            PRECISION_FACTOR
+        );
 
         emit Withdraw(msg.sender, _amount);
     }
@@ -180,7 +194,11 @@ contract Stake is Ownable, ReentrancyGuard {
         _updatePool();
 
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 pending = user
+                .amount
+                .mul(accTokenPerShare)
+                .div(PRECISION_FACTOR)
+                .sub(user.rewardDebt);
 
             if (pending > 0) {
                 safeTokenTransfer(msg.sender, pending);
@@ -188,7 +206,9 @@ contract Stake is Ownable, ReentrancyGuard {
             }
         }
 
-        user.rewardDebt = user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR);
+        user.rewardDebt = user.amount.mul(accTokenPerShare).div(
+            PRECISION_FACTOR
+        );
     }
 
     /*
@@ -198,27 +218,33 @@ contract Stake is Ownable, ReentrancyGuard {
     function safeTokenTransfer(address _to, uint256 _amount) internal {
         uint256 rewardTokenBalance = rewardToken.balanceOf(address(this));
         if (_amount > rewardTokenBalance) {
-            rewardToken.safeTransfer(address(msg.sender), rewardTokenBalance);
+            rewardToken.safeTransfer(_to, rewardTokenBalance);
         } else {
-            rewardToken.safeTransfer(address(msg.sender), _amount);
+            rewardToken.safeTransfer(_to, _amount);
         }
     }
-    
+
     /*
      * @notice Withdraw staked tokens without caring about rewards
      * @dev Needs to be for emergency.
      */
     function emergencyWithdraw() external nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
-        uint256 amountToTransfer = user.amount;
+        uint256 _amountToTransfer = user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
 
-        if (amountToTransfer > 0) {
-            stakedToken.safeTransfer(address(msg.sender), amountToTransfer);
+        // Avoid users send an amount with 0 tokens
+        if (_amountToTransfer > 0) {
+            if (block.timestamp < (user.firstDeposit + lockUpDuration)) {
+                uint256 _feeAmountToSend = _amountToTransfer.mul(withdrawFee).div(10000);
+                stakedToken.safeTransfer(address(feeAddress), _feeAmountToSend);
+                _amountToTransfer = _amountToTransfer - _feeAmountToSend;
+            }
+            stakedToken.safeTransfer(address(msg.sender), _amountToTransfer);
         }
 
-        emit EmergencyWithdraw(msg.sender, user.amount);
+        emit EmergencyWithdraw(msg.sender, _amountToTransfer);
     }
 
     /*
@@ -236,9 +262,18 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _tokenAmount: the number of tokens to withdraw
      * @dev This function is only callable by admin.
      */
-    function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount) external onlyOwner {
-        require(_tokenAddress != address(stakedToken), "Cannot be staked token");
-        require(_tokenAddress != address(rewardToken), "Cannot be reward token");
+    function recoverWrongTokens(address _tokenAddress, uint256 _tokenAmount)
+        external
+        onlyOwner
+    {
+        require(
+            _tokenAddress != address(stakedToken),
+            "Cannot be staked token"
+        );
+        require(
+            _tokenAddress != address(rewardToken),
+            "Cannot be reward token"
+        );
 
         IERC20(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
 
@@ -270,10 +305,19 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _startBlock: the new start block
      * @param _bonusEndBlock: the new end block
      */
-    function updateStartAndEndBlocks(uint256 _startBlock, uint256 _bonusEndBlock) external onlyOwner {
+    function updateStartAndEndBlocks(
+        uint256 _startBlock,
+        uint256 _bonusEndBlock
+    ) external onlyOwner {
         require(block.number < startBlock, "Pool has started");
-        require(_startBlock < _bonusEndBlock, "New startBlock must be lower than new endBlock");
-        require(block.number < _startBlock, "New startBlock must be higher than current block");
+        require(
+            _startBlock < _bonusEndBlock,
+            "New startBlock must be lower than new endBlock"
+        );
+        require(
+            block.number < _startBlock,
+            "New startBlock must be higher than current block"
+        );
 
         startBlock = _startBlock;
         endBlock = _bonusEndBlock;
@@ -295,11 +339,20 @@ contract Stake is Ownable, ReentrancyGuard {
         if (block.number > lastUpdateBlock && stakedTokenSupply != 0) {
             uint256 multiplier = _getMultiplier(lastUpdateBlock, block.number);
             uint256 tokenReward = multiplier.mul(rewardPerBlock);
-            uint256 adjustedTokenPerShare =
-            accTokenPerShare.add(tokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply));
-            return user.amount.mul(adjustedTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            uint256 adjustedTokenPerShare = accTokenPerShare.add(
+                tokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
+            );
+            return
+                user
+                    .amount
+                    .mul(adjustedTokenPerShare)
+                    .div(PRECISION_FACTOR)
+                    .sub(user.rewardDebt);
         } else {
-            return user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(user.rewardDebt);
+            return
+                user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(
+                    user.rewardDebt
+                );
         }
     }
 
@@ -320,7 +373,9 @@ contract Stake is Ownable, ReentrancyGuard {
 
         uint256 multiplier = _getMultiplier(lastUpdateBlock, block.number);
         uint256 tokenReward = multiplier.mul(rewardPerBlock);
-        accTokenPerShare = accTokenPerShare.add(tokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply));
+        accTokenPerShare = accTokenPerShare.add(
+            tokenReward.mul(PRECISION_FACTOR).div(stakedTokenSupply)
+        );
         lastUpdateBlock = block.number;
     }
 
@@ -330,7 +385,11 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _to: block to finish
      * @return multiplier
      */
-    function _getMultiplier(uint256 _from, uint256 _to) internal view returns (uint256) {
+    function _getMultiplier(uint256 _from, uint256 _to)
+        internal
+        view
+        returns (uint256)
+    {
         if (_to <= endBlock) {
             return _to.sub(_from);
         } else if (_from >= endBlock) {
@@ -388,7 +447,10 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _durationBlocks: duration block amount
      * @dev This function is only callable by owner.
      */
-    function poolSetStartAndDuration(uint256 _startBlock, uint256 _durationBlocks) public onlyOwner {
+    function poolSetStartAndDuration(
+        uint256 _startBlock,
+        uint256 _durationBlocks
+    ) public onlyOwner {
         poolSetStart(_startBlock);
         poolSetDuration(_durationBlocks);
     }
@@ -403,34 +465,25 @@ contract Stake is Ownable, ReentrancyGuard {
     }
 
     /*
-     * @notice Sets the max reward amount for a TX
-     * @param _maxTxAmount: max TX amount
-     * @dev This function is only callable by owner.
+     * @notice Gets the reward duration
+     * @return reward duration
      */
-    function poolSetRewardMaxTxAmount(uint256 _maxTxAmount) public onlyOwner {
-        rewardMaxTxAmount = _maxTxAmount;
-    }
-
-    /*
-    * @notice Gets the reward duration
-    * @return reward duration
-    */
     function rewardDuration() public view returns (uint256) {
         return endBlock.sub(startBlock);
     }
 
     /*
-    * @notice Gets the reward per block for UI
-    * @return reward per block
-    */
+     * @notice Gets the reward per block for UI
+     * @return reward per block
+     */
     function rewardPerBlockUI() public view returns (uint256) {
-        return rewardPerBlock.div(10 ** uint256(rewardTokenDecimals));
+        return rewardPerBlock.div(10**uint256(rewardTokenDecimals));
     }
 
     /*
-    * @notice Withdraws the remaining funds
-    * @param _to The address where the funds will be sent
-    */
+     * @notice Withdraws the remaining funds
+     * @param _to The address where the funds will be sent
+     */
     function withdrawRemains(address _to) public onlyOwner {
         require(block.number > endBlock, "Error: Pool not finished yet");
         uint256 tokenBal = rewardToken.balanceOf(address(this));
@@ -439,9 +492,9 @@ contract Stake is Ownable, ReentrancyGuard {
     }
 
     /*
-    * @notice Withdraws the remaining funds
-    * @param _to The address where the funds will be sent
-    */
+     * @notice Withdraws the remaining funds
+     * @param _to The address where the funds will be sent
+     */
     function depositRewardFunds(uint256 _amount) public onlyOwner {
         IERC20(rewardToken).safeTransfer(address(this), _amount);
     }
