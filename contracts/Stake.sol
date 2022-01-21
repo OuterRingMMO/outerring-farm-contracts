@@ -79,7 +79,6 @@ contract Stake is Ownable, ReentrancyGuard {
     constructor(
         IERC20 _stakedToken,
         IERC20 _rewardToken,
-        uint256 _rewardPerBlock,
         uint256 _startBlock,
         uint256 _endBlock,
         uint256 _lockUpDuration,
@@ -88,7 +87,6 @@ contract Stake is Ownable, ReentrancyGuard {
     ) {
         stakedToken = _stakedToken;
         rewardToken = _rewardToken;
-        rewardPerBlock = _rewardPerBlock;
         startBlock = _startBlock;
         endBlock = _endBlock;
         lockUpDuration = _lockUpDuration;
