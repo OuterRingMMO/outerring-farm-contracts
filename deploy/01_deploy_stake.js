@@ -41,7 +41,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const tx = await stakeContract.poolCalcRewardPerBlock();
     console.log(tx);
-
+    /*
     // Verification block
     await run("verify:verify", {
         address: stake.address,
@@ -55,7 +55,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
             withdrawFee,
             feeAddress
         ]
-    });
+    });*/
     
 };
 

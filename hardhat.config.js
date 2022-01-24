@@ -28,7 +28,8 @@ module.exports = {
   },
   networks: {
     localhost: {
-      url: "http://127.0.0.1:8545"
+      url: "http://127.0.0.1:8545",
+      accounts: [`0x${process.env.DEPLOYER_PRIVATE_KEY}`]
     },
     ropsten: {
       url: `https://ropsten.infura.io/v3/57d2eecbc0fd4f94b263eae83dd8ed93`,

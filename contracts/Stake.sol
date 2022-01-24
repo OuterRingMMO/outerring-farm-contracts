@@ -61,9 +61,11 @@ contract Stake is Ownable, ReentrancyGuard {
     event Claim(address indexed user, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 amount);
     event NewStartAndEndBlocks(uint256 startBlock, uint256 endBlock);
+    event NewEndBlock(uint256 endBlock);
     event NewRewardPerBlock(uint256 rewardPerBlock);
     event RewardsStop(uint256 blockNumber);
     event Withdraw(address indexed user, uint256 amount);
+    event NewLockUpDuration(uint256 lockUpDuration);
 
     /*
      * @notice Constructor of the contract
@@ -402,8 +404,9 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _lockUpDuration: The lock up duration in seconds (block timestamp)
      * @dev This function is only callable by owner.
      */
-    function setLockUpDuration(uint256 _lockUpDuration) public onlyOwner {
+    function setLockUpDuration(uint256 _lockUpDuration) external onlyOwner {
         lockUpDuration = _lockUpDuration;
+        emit NewLockUpDuration(lockUpDuration);
     }
 
     /*
@@ -411,7 +414,7 @@ contract Stake is Ownable, ReentrancyGuard {
      * @param _blocks: block amount
      * @dev This function is only callable by owner.
      */
-    function poolStartIn(uint256 _blocks) public onlyOwner {
+    function poolStartIn(uint256 _blocks) external onlyOwner {
         poolSetStart(block.number.add(_blocks));
     }
 
@@ -426,6 +429,7 @@ contract Stake is Ownable, ReentrancyGuard {
         startBlock = _startBlock;
         endBlock = startBlock.add(rewardDurationValue);
         lastUpdateBlock = startBlock;
+        emit NewStartAndEndBlocks(startBlock, endBlock);
     }
 
     /*
@@ -437,6 +441,7 @@ contract Stake is Ownable, ReentrancyGuard {
         require(block.number < startBlock, "Pool has started");
         endBlock = startBlock.add(_durationBlocks);
         poolCalcRewardPerBlock();
+        emit NewEndBlock(endBlock);
     }
 
     /*
@@ -448,7 +453,7 @@ contract Stake is Ownable, ReentrancyGuard {
     function poolSetStartAndDuration(
         uint256 _startBlock,
         uint256 _durationBlocks
-    ) public onlyOwner {
+    ) external onlyOwner {
         poolSetStart(_startBlock);
         poolSetDuration(_durationBlocks);
     }
@@ -474,7 +479,7 @@ contract Stake is Ownable, ReentrancyGuard {
      * @notice Gets the reward per block for UI
      * @return reward per block
      */
-    function rewardPerBlockUI() public view returns (uint256) {
+    function rewardPerBlockUI() external view returns (uint256) {
         return rewardPerBlock.div(10**uint256(rewardTokenDecimals));
     }
 
@@ -482,7 +487,7 @@ contract Stake is Ownable, ReentrancyGuard {
      * @notice Withdraws the remaining funds
      * @param _to The address where the funds will be sent
      */
-    function withdrawRemains(address _to) public onlyOwner {
+    function withdrawRemains(address _to) external onlyOwner {
         require(block.number > endBlock, "Error: Pool not finished yet");
         uint256 tokenBal = rewardToken.balanceOf(address(this));
         require(tokenBal > 0, "Error: No remaining funds");
@@ -493,7 +498,7 @@ contract Stake is Ownable, ReentrancyGuard {
      * @notice Withdraws the remaining funds
      * @param _to The address where the funds will be sent
      */
-    function depositRewardFunds(uint256 _amount) public onlyOwner {
+    function depositRewardFunds(uint256 _amount) external onlyOwner {
         IERC20(rewardToken).safeTransfer(address(this), _amount);
     }
 }
