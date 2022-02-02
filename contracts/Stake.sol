@@ -121,7 +121,7 @@ contract Stake is Ownable, ReentrancyGuard {
                 .div(PRECISION_FACTOR)
                 .sub(user.rewardDebt);
             if (pending > 0) {
-                safeTokenTransfer(msg.sender, pending);
+                _safeTokenTransfer(msg.sender, pending);
             }
         }
 
@@ -175,7 +175,7 @@ contract Stake is Ownable, ReentrancyGuard {
             : user.firstDeposit;
 
         if (pending > 0) {
-            safeTokenTransfer(msg.sender, pending);
+            _safeTokenTransfer(msg.sender, pending);
         }
 
         user.rewardDebt = user.amount.mul(accTokenPerShare).div(
@@ -201,7 +201,7 @@ contract Stake is Ownable, ReentrancyGuard {
                 .sub(user.rewardDebt);
 
             if (pending > 0) {
-                safeTokenTransfer(msg.sender, pending);
+                _safeTokenTransfer(msg.sender, pending);
                 emit Claim(msg.sender, pending);
             }
         }
@@ -209,19 +209,6 @@ contract Stake is Ownable, ReentrancyGuard {
         user.rewardDebt = user.amount.mul(accTokenPerShare).div(
             PRECISION_FACTOR
         );
-    }
-
-    /*
-     * @notice SendPending tokens to claimer
-     * @param pending: amount to claim
-     */
-    function safeTokenTransfer(address _to, uint256 _amount) internal {
-        uint256 rewardTokenBalance = rewardToken.balanceOf(address(this));
-        if (_amount > rewardTokenBalance) {
-            rewardToken.safeTransfer(_to, rewardTokenBalance);
-        } else {
-            rewardToken.safeTransfer(_to, _amount);
-        }
     }
 
     /*
@@ -237,7 +224,9 @@ contract Stake is Ownable, ReentrancyGuard {
         // Avoid users send an amount with 0 tokens
         if (_amountToTransfer > 0) {
             if (block.timestamp < (user.firstDeposit + lockUpDuration)) {
-                uint256 _feeAmountToSend = _amountToTransfer.mul(withdrawFee).div(10000);
+                uint256 _feeAmountToSend = _amountToTransfer
+                    .mul(withdrawFee)
+                    .div(10000);
                 stakedToken.safeTransfer(address(feeAddress), _feeAmountToSend);
                 _amountToTransfer = _amountToTransfer - _feeAmountToSend;
             }
@@ -245,15 +234,6 @@ contract Stake is Ownable, ReentrancyGuard {
         }
 
         emit EmergencyWithdraw(msg.sender, _amountToTransfer);
-    }
-
-    /*
-     * @notice Stop rewards
-     * @dev Only callable by owner. Needs to be for emergency.
-     */
-    //TODO: Review
-    function emergencyRewardWithdraw(uint256 _amount) external onlyOwner {
-        rewardToken.safeTransfer(address(msg.sender), _amount);
     }
 
     /**
@@ -329,6 +309,66 @@ contract Stake is Ownable, ReentrancyGuard {
     }
 
     /*
+     * @notice Sets the lock up duration
+     * @param _lockUpDuration: The lock up duration in seconds (block timestamp)
+     * @dev This function is only callable by owner.
+     */
+    function setLockUpDuration(uint256 _lockUpDuration) external onlyOwner {
+        lockUpDuration = _lockUpDuration;
+        emit NewLockUpDuration(lockUpDuration);
+    }
+
+    /*
+     * @notice Sets start block of the pool given a block amount
+     * @param _blocks: block amount
+     * @dev This function is only callable by owner.
+     */
+    function poolStartIn(uint256 _blocks) external onlyOwner {
+        poolSetStart(block.number.add(_blocks));
+    }
+
+    /*
+     * @notice Set the duration and start block of the pool
+     * @param _startBlock: start block
+     * @param _durationBlocks: duration block amount
+     * @dev This function is only callable by owner.
+     */
+    function poolSetStartAndDuration(
+        uint256 _startBlock,
+        uint256 _durationBlocks
+    ) external onlyOwner {
+        poolSetStart(_startBlock);
+        poolSetDuration(_durationBlocks);
+    }
+
+    /*
+     * @notice Withdraws the remaining funds
+     * @param _to The address where the funds will be sent
+     */
+    function withdrawRemains(address _to) external onlyOwner {
+        require(block.number > endBlock, "Error: Pool not finished yet");
+        uint256 tokenBal = rewardToken.balanceOf(address(this));
+        require(tokenBal > 0, "Error: No remaining funds");
+        IERC20(rewardToken).safeTransfer(_to, tokenBal);
+    }
+
+    /*
+     * @notice Withdraws the remaining funds
+     * @param _to The address where the funds will be sent
+     */
+    function depositRewardFunds(uint256 _amount) external onlyOwner {
+        IERC20(rewardToken).safeTransfer(address(this), _amount);
+    }
+
+    /*
+     * @notice Gets the reward per block for UI
+     * @return reward per block
+     */
+    function rewardPerBlockUI() external view returns (uint256) {
+        return rewardPerBlock.div(10**uint256(rewardTokenDecimals));
+    }
+
+    /*
      * @notice View function to see pending reward on frontend.
      * @param _user: user address
      * @return Pending reward for a given user
@@ -353,6 +393,62 @@ contract Stake is Ownable, ReentrancyGuard {
                 user.amount.mul(accTokenPerShare).div(PRECISION_FACTOR).sub(
                     user.rewardDebt
                 );
+        }
+    }
+
+    /*
+     * @notice Sets start block of the pool
+     * @param _startBlock: start block
+     * @dev This function is only callable by owner.
+     */
+    function poolSetStart(uint256 _startBlock) public onlyOwner {
+        require(block.number < startBlock, "Pool has started");
+        uint256 rewardDurationValue = rewardDuration();
+        startBlock = _startBlock;
+        endBlock = startBlock.add(rewardDurationValue);
+        lastUpdateBlock = startBlock;
+        emit NewStartAndEndBlocks(startBlock, endBlock);
+    }
+
+    /*
+     * @notice Set the duration of the pool
+     * @param _durationBlocks: duration block amount
+     * @dev This function is only callable by owner.
+     */
+    function poolSetDuration(uint256 _durationBlocks) public onlyOwner {
+        require(block.number < startBlock, "Pool has started");
+        endBlock = startBlock.add(_durationBlocks);
+        poolCalcRewardPerBlock();
+        emit NewEndBlock(endBlock);
+    }
+
+    /*
+     * @notice Calculates the rewardPerBlock of the pool
+     * @dev This function is only callable by owner.
+     */
+    function poolCalcRewardPerBlock() public onlyOwner {
+        uint256 rewardBal = rewardToken.balanceOf(address(this));
+        rewardPerBlock = rewardBal.div(rewardDuration());
+    }
+
+    /*
+     * @notice Gets the reward duration
+     * @return reward duration
+     */
+    function rewardDuration() public view returns (uint256) {
+        return endBlock.sub(startBlock);
+    }
+
+    /*
+     * @notice SendPending tokens to claimer
+     * @param pending: amount to claim
+     */
+    function _safeTokenTransfer(address _to, uint256 _amount) internal {
+        uint256 rewardTokenBalance = rewardToken.balanceOf(address(this));
+        if (_amount > rewardTokenBalance) {
+            rewardToken.safeTransfer(_to, rewardTokenBalance);
+        } else {
+            rewardToken.safeTransfer(_to, _amount);
         }
     }
 
@@ -397,108 +493,5 @@ contract Stake is Ownable, ReentrancyGuard {
         } else {
             return endBlock.sub(_from);
         }
-    }
-
-    /*
-     * @notice Sets the lock up duration
-     * @param _lockUpDuration: The lock up duration in seconds (block timestamp)
-     * @dev This function is only callable by owner.
-     */
-    function setLockUpDuration(uint256 _lockUpDuration) external onlyOwner {
-        lockUpDuration = _lockUpDuration;
-        emit NewLockUpDuration(lockUpDuration);
-    }
-
-    /*
-     * @notice Sets start block of the pool given a block amount
-     * @param _blocks: block amount
-     * @dev This function is only callable by owner.
-     */
-    function poolStartIn(uint256 _blocks) external onlyOwner {
-        poolSetStart(block.number.add(_blocks));
-    }
-
-    /*
-     * @notice Sets start block of the pool
-     * @param _startBlock: start block
-     * @dev This function is only callable by owner.
-     */
-    function poolSetStart(uint256 _startBlock) public onlyOwner {
-        require(block.number < startBlock, "Pool has started");
-        uint256 rewardDurationValue = rewardDuration();
-        startBlock = _startBlock;
-        endBlock = startBlock.add(rewardDurationValue);
-        lastUpdateBlock = startBlock;
-        emit NewStartAndEndBlocks(startBlock, endBlock);
-    }
-
-    /*
-     * @notice Set the duration of the pool
-     * @param _durationBlocks: duration block amount
-     * @dev This function is only callable by owner.
-     */
-    function poolSetDuration(uint256 _durationBlocks) public onlyOwner {
-        require(block.number < startBlock, "Pool has started");
-        endBlock = startBlock.add(_durationBlocks);
-        poolCalcRewardPerBlock();
-        emit NewEndBlock(endBlock);
-    }
-
-    /*
-     * @notice Set the duration and start block of the pool
-     * @param _startBlock: start block
-     * @param _durationBlocks: duration block amount
-     * @dev This function is only callable by owner.
-     */
-    function poolSetStartAndDuration(
-        uint256 _startBlock,
-        uint256 _durationBlocks
-    ) external onlyOwner {
-        poolSetStart(_startBlock);
-        poolSetDuration(_durationBlocks);
-    }
-
-    /*
-     * @notice Calculates the rewardPerBlock of the pool
-     * @dev This function is only callable by owner.
-     */
-    function poolCalcRewardPerBlock() public onlyOwner {
-        uint256 rewardBal = rewardToken.balanceOf(address(this));
-        rewardPerBlock = rewardBal.div(rewardDuration());
-    }
-
-    /*
-     * @notice Gets the reward duration
-     * @return reward duration
-     */
-    function rewardDuration() public view returns (uint256) {
-        return endBlock.sub(startBlock);
-    }
-
-    /*
-     * @notice Gets the reward per block for UI
-     * @return reward per block
-     */
-    function rewardPerBlockUI() external view returns (uint256) {
-        return rewardPerBlock.div(10**uint256(rewardTokenDecimals));
-    }
-
-    /*
-     * @notice Withdraws the remaining funds
-     * @param _to The address where the funds will be sent
-     */
-    function withdrawRemains(address _to) external onlyOwner {
-        require(block.number > endBlock, "Error: Pool not finished yet");
-        uint256 tokenBal = rewardToken.balanceOf(address(this));
-        require(tokenBal > 0, "Error: No remaining funds");
-        IERC20(rewardToken).safeTransfer(_to, tokenBal);
-    }
-
-    /*
-     * @notice Withdraws the remaining funds
-     * @param _to The address where the funds will be sent
-     */
-    function depositRewardFunds(uint256 _amount) external onlyOwner {
-        IERC20(rewardToken).safeTransfer(address(this), _amount);
     }
 }

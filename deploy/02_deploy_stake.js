@@ -6,12 +6,9 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const StakeToken = await hre.deployments.get('StakeToken');
     const stakeTokenContract = await ethers.getContractAt('StakeToken', StakeToken.address);
-
-    const RewardToken = await hre.deployments.get('RewardToken');
-    const rewardTokenContract = await ethers.getContractAt('RewardToken', RewardToken.address);
     
-    let stakedToken = stakeTokenContract.address;
-    let rewardToken = rewardTokenContract.address;
+    let stakedTokenAddress = stakeTokenContract.address;
+    let rewardTokenAddress = '0xAF517e25f6C80789ED841C4A79E5d7F8803Edf05';
     let startBlock = 14537386;
     let endBlock = 23811317;
     let lockUpDuration = 7776000;
@@ -21,8 +18,8 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const stake = await deploy('Stake', {
         from: deployer,
         args: [
-            stakedToken,
-            rewardToken,
+            stakedTokenAddress,
+            rewardTokenAddress,
             startBlock,
             endBlock,
             lockUpDuration,
@@ -34,6 +31,8 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     console.log('Stake deployed at: ', stake.address);
 
+    const rewardTokenContract = await ethers.getContractAt('RewardToken', rewardTokenAddress);
+
     await rewardTokenContract.transfer(stake.address, ethers.utils.parseUnits("100000.0", "ether"));
 
     const Stake = await hre.deployments.get('Stake');
@@ -41,21 +40,21 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
     const tx = await stakeContract.poolCalcRewardPerBlock();
     console.log(tx);
-    /*
+    
     // Verification block
     await run("verify:verify", {
         address: stake.address,
         contract: "contracts/Stake.sol:Stake",
         constructorArguments: [
-            stakedToken,
-            rewardToken,
+            stakedTokenAddress,
+            rewardTokenAddress,
             startBlock,
             endBlock,
             lockUpDuration,
             withdrawFee,
             feeAddress
         ]
-    });*/
+    });
     
 };
 
