@@ -42,9 +42,14 @@ module.exports = {
       gas: 2100000,
       gasPrice: 12000000000,
       accounts: [
-        `0x${process.env.DEPLOYER_PRIVATE_KEY1}`,
-        `0x${process.env.DEPLOYER_PRIVATE_KEY2}`,
-        `0x${process.env.DEPLOYER_PRIVATE_KEY3}`
+        `0x${process.env.DEPLOYER_PRIVATE_KEY1}`
+      ]
+    },
+    bscMainnet: {
+      url: `https://bsc-dataseed1.ninicoin.io/`,
+      chainId: 56,
+      accounts: [
+        `0x${process.env.DEPLOYER_PRIVATE_KEY1}`
       ]
     },
     mumbai: {
@@ -56,6 +61,7 @@ module.exports = {
   etherscan: {
     apiKey: {
       ropsten: process.env.ETHERSCAN_API_KEY,
+      bsc: process.env.BSCSCAN_API_KEY,
       bscTestnet: process.env.BSCSCAN_API_KEY,
       polygonMumbai: process.env.POLYGONSCAN_API_KEY
     }
