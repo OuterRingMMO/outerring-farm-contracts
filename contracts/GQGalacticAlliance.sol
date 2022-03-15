@@ -9,23 +9,19 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuard {
+contract GQGalacticAlliance is
+    Initializable,
+    OwnableUpgradeable,
+    ReentrancyGuard
+{
     using SafeMathUpgradeable for uint256;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    enum Reward {
-        TOKEN1,
-        TOKEN2
-    }
-
-    Reward rewardToken;
+    uint8 constant TOKEN1 = 1;
+    uint8 constant TOKEN2 = 2;
 
     // Is contract initialized
     bool public isInitialized;
-    // Accrued token per share
-    mapping(uint8 => uint256) public mapOfAccTokenPerShare;
-    uint256 public accTokenPerShare1;
-    uint256 public accTokenPerShare2;
 
     // The block number when REWARD distribution ends.
     uint256 public endBlock;
@@ -36,32 +32,32 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
     // The block number of the last pool update
     uint256 public lastUpdateBlock;
 
-    // REWARD tokens created per block.
-    mapping(uint8 => uint256) mapRewardPerBlock;
-
     // Lockup duration for deposit
     uint256 public lockUpDuration;
 
     // Withdraw fee in BP
     uint256 public withdrawFee;
 
+    // Withdraw fee destiny address
+    address public feeAddress;
+
+    // The staked token
+    IERC20Upgradeable public stakedToken;
+
+    // Accrued token per share
+    mapping(uint8 => uint256) public mapOfAccTokenPerShare;
+
+    // REWARD tokens created per block.
+    mapping(uint8 => uint256) mapOfRewardPerBlock;
+
     // The precision factor for reward tokens
     mapping(uint8 => uint256) public mapOfPrecisionFactor;
 
     // decimals places of the reward token
-    uint8 public rewardToken1Decimals;
-    uint8 public rewardToken2Decimals;
-
-    // Withdraw fee destiny address
-    address public feeAddress;
+    mapping(uint8 => uint8) public mapOfRewardTokenDecimals;
 
     // The reward token
     mapping(uint8 => address) public mapOfRewardTokens;
-    IERC20Upgradeable public rewardToken1;
-    IERC20Upgradeable public rewardToken2;
-
-    // The staked token
-    IERC20Upgradeable public stakedToken;
 
     // Info of each user that stakes tokens (stakedToken)
     mapping(address => UserInfo) public userInfo;
@@ -84,14 +80,13 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
     event Withdraw(address indexed user, uint256 amount);
     event NewLockUpDuration(uint256 lockUpDuration);
 
-    constructor() initializer {
-
-    }
+    constructor() initializer {}
 
     /*
      * @notice Constructor of the contract
      * @param _stakedToken: staked token address
-     * @param _rewardToken: reward token address
+     * @param _rewardToken1: reward token1 address
+     * @param _rewardToken2: reward token2 address
      * @param _rewardPerBlock: reward per block (in rewardToken)
      * @param _startBlock: start block
      * @param _endBlock: end block
@@ -110,20 +105,32 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         address _feeAddress
     ) public initializer {
         stakedToken = _stakedToken;
-        mapOfRewardTokens[rewardToken.TOKEN1] = _rewardToken1;
-        mapOfRewardTokens[rewardToken.TOKEN2] = _rewardToken2;
+        mapOfRewardTokens[TOKEN1] = _rewardToken1;
+        mapOfRewardTokens[TOKEN2] = _rewardToken2;
         startBlock = _startBlock;
         endBlock = _endBlock;
         lockUpDuration = _lockUpDuration;
         withdrawFee = _withdrawFee;
         feeAddress = _feeAddress;
 
-        rewardToken1Decimals = IERC20MetadataUpgradeable(mapOfRewardTokens[rewardToken.TOKEN1]).decimals();
-        rewardToken2Decimals = IERC20MetadataUpgradeable(mapOfRewardTokens[rewardToken.TOKEN2]).decimals();
-        require(uint256(rewardToken1Decimals) < 30 && uint256(rewardToken2Decimals) < 30, "Must be inferior to 30");
+        mapOfRewardTokenDecimals[TOKEN1] = IERC20MetadataUpgradeable(
+            mapOfRewardTokens[TOKEN1]
+        ).decimals();
+        mapOfRewardTokenDecimals[TOKEN2] = IERC20MetadataUpgradeable(
+            mapOfRewardTokens[TOKEN2]
+        ).decimals();
+        require(
+            mapOfRewardTokenDecimals[TOKEN1] < 30 &&
+                mapOfRewardTokenDecimals[TOKEN2] < 30,
+            "Must be inferior to 30"
+        );
 
-        mapOfPrecisionFactor[rewardToken.TOKEN1] = uint256(10**(uint256(30).sub(uint256(rewardToken1Decimals))));
-        mapOfPrecisionFactor[rewardToken.TOKEN2] = uint256(10**(uint256(30).sub(uint256(rewardToken2Decimals))));
+        mapOfPrecisionFactor[TOKEN1] = uint256(
+            10**(uint256(30).sub(uint256(mapOfRewardTokenDecimals[TOKEN1])))
+        );
+        mapOfPrecisionFactor[TOKEN2] = uint256(
+            10**(uint256(30).sub(uint256(mapOfRewardTokenDecimals[TOKEN2])))
+        );
 
         // Set the lastRewardBlock as the startBlock
         lastUpdateBlock = startBlock;
@@ -141,13 +148,30 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         _updatePool();
 
         if (user.amount > 0) {
-            uint256 pendingToken1 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN1]).div(mapOfPrecisionFactor[rewardToken.TOKEN1]).sub(user.rewardDebt1);
-            uint256 pendingToken2 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN2]).div(mapOfPrecisionFactor[rewardToken.TOKEN1]).sub(user.rewardDebt2);
+            uint256 pendingToken1 = user
+                .amount
+                .mul(mapOfAccTokenPerShare[TOKEN1])
+                .div(mapOfPrecisionFactor[TOKEN1])
+                .sub(user.rewardDebt1);
             if (pendingToken1 > 0) {
-                _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN1], msg.sender, pendingToken1);
+                _safeTokenTransfer(
+                    mapOfRewardTokens[TOKEN1],
+                    msg.sender,
+                    pendingToken1
+                );
             }
+            uint256 pendingToken2 = user
+                .amount
+                .mul(mapOfAccTokenPerShare[TOKEN2])
+                .div(mapOfPrecisionFactor[TOKEN1])
+                .sub(user.rewardDebt2);
+
             if (pendingToken2 > 0) {
-                _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN2], msg.sender, pendingToken2);
+                _safeTokenTransfer(
+                    mapOfRewardTokens[TOKEN2],
+                    msg.sender,
+                    pendingToken2
+                );
             }
         }
 
@@ -163,13 +187,15 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
                 : user.firstDeposit;
         }
 
-        user.rewardDebt1 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN1]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN1]
-        );
+        user.rewardDebt1 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN1])
+            .div(mapOfPrecisionFactor[TOKEN1]);
 
-        user.rewardDebt2 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN2]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN2]
-        );
+        user.rewardDebt2 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN2])
+            .div(mapOfPrecisionFactor[TOKEN2]);
 
         emit Deposit(msg.sender, _amount);
     }
@@ -184,8 +210,16 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         require(user.amount >= _amount, "Amount to withdraw too high");
         _updatePool();
 
-        uint256 pendingToken1 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN1]).div(mapOfPrecisionFactor[rewardToken.TOKEN1]).sub(user.rewardDebt1);
-        uint256 pendingToken2 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN2]).div(mapOfPrecisionFactor[rewardToken.TOKEN2]).sub(user.rewardDebt2);
+        uint256 pendingToken1 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN1])
+            .div(mapOfPrecisionFactor[TOKEN1])
+            .sub(user.rewardDebt1);
+        uint256 pendingToken2 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN2])
+            .div(mapOfPrecisionFactor[TOKEN2])
+            .sub(user.rewardDebt2);
 
         user.amount = user.amount.sub(_amount);
         uint256 _amountToSend = _amount;
@@ -202,18 +236,28 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
             : user.firstDeposit;
 
         if (pendingToken1 > 0) {
-            _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN1], msg.sender, pendingToken1);
+            _safeTokenTransfer(
+                mapOfRewardTokens[TOKEN1],
+                msg.sender,
+                pendingToken1
+            );
         }
         if (pendingToken2 > 0) {
-            _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN2], msg.sender, pendingToken2);
+            _safeTokenTransfer(
+                mapOfRewardTokens[TOKEN2],
+                msg.sender,
+                pendingToken2
+            );
         }
 
-        user.rewardDebt1 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN1]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN1]
-        );
-        user.rewardDebt2 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN2]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN2]
-        );
+        user.rewardDebt1 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN1])
+            .div(mapOfPrecisionFactor[TOKEN1]);
+        user.rewardDebt2 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN2])
+            .div(mapOfPrecisionFactor[TOKEN2]);
 
         emit Withdraw(msg.sender, _amount);
     }
@@ -229,33 +273,43 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         if (user.amount > 0) {
             uint256 pendingToken1 = user
                 .amount
-                .mul(mapOfAccTokenPerShare[rewardToken.TOKEN1])
-                .div(mapOfPrecisionFactor[rewardToken.TOKEN1])
+                .mul(mapOfAccTokenPerShare[TOKEN1])
+                .div(mapOfPrecisionFactor[TOKEN1])
                 .sub(user.rewardDebt1);
 
             if (pendingToken1 > 0) {
-                _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN1], msg.sender, pendingToken1);
+                _safeTokenTransfer(
+                    mapOfRewardTokens[TOKEN1],
+                    msg.sender,
+                    pendingToken1
+                );
                 emit Claim(msg.sender, pendingToken1);
             }
             uint256 pendingToken2 = user
                 .amount
-                .mul(mapOfAccTokenPerShare[rewardToken.TOKEN2])
-                .div(mapOfPrecisionFactor[rewardToken.TOKEN2])
+                .mul(mapOfAccTokenPerShare[TOKEN2])
+                .div(mapOfPrecisionFactor[TOKEN2])
                 .sub(user.rewardDebt2);
 
             if (pendingToken2 > 0) {
-                _safeTokenTransfer(mapOfRewardTokens[rewardToken.TOKEN2], msg.sender, pendingToken2);
+                _safeTokenTransfer(
+                    mapOfRewardTokens[TOKEN2],
+                    msg.sender,
+                    pendingToken2
+                );
                 emit Claim(msg.sender, pendingToken2);
             }
         }
 
-        user.rewardDebt1 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN1]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN1]
-        );
+        user.rewardDebt1 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN1])
+            .div(mapOfPrecisionFactor[TOKEN1]);
 
-        user.rewardDebt2 = user.amount.mul(mapOfAccTokenPerShare[rewardToken.TOKEN2]).div(
-            mapOfPrecisionFactor[rewardToken.TOKEN2]
-        );
+        user.rewardDebt2 = user
+            .amount
+            .mul(mapOfAccTokenPerShare[TOKEN2])
+            .div(mapOfPrecisionFactor[TOKEN2]);
     }
 
     /*
@@ -266,7 +320,8 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         UserInfo storage user = userInfo[msg.sender];
         uint256 _amountToTransfer = user.amount;
         user.amount = 0;
-        user.rewardDebt = 0;
+        user.rewardDebt1 = 0;
+        user.rewardDebt2 = 0;
 
         // Avoid users send an amount with 0 tokens
         if (_amountToTransfer > 0) {
@@ -298,11 +353,15 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
             "Cannot be staked token"
         );
         require(
-            _tokenAddress != mapOfRewardTokens[rewardToken.TOKEN1] && _tokenAddress != mapOfRewardTokens[rewardToken.TOKEN2],
+            _tokenAddress != mapOfRewardTokens[TOKEN1] &&
+                _tokenAddress != mapOfRewardTokens[TOKEN2],
             "Cannot be reward token"
         );
 
-        IERC20Upgradeable(_tokenAddress).safeTransfer(address(msg.sender), _tokenAmount);
+        IERC20Upgradeable(_tokenAddress).safeTransfer(
+            address(msg.sender),
+            _tokenAmount
+        );
 
         emit AdminTokenRecovery(_tokenAddress, _tokenAmount);
     }
@@ -320,9 +379,12 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
      * @dev Only callable by owner.
      * @param _rewardPerBlock: the reward per block
      */
-    function updateRewardPerBlock(uint8 _rewardToken, uint256 _rewardPerBlock) external onlyOwner {
+    function updateRewardPerBlock(uint8 _rewardTokenId, uint256 _rewardPerBlock)
+        external
+        onlyOwner
+    {
         require(block.number < startBlock, "Pool has started");
-        mapRewardPerBlock[_rewardToken] = _rewardPerBlock;
+        mapOfRewardPerBlock[_rewardTokenId] = _rewardPerBlock;
         emit NewRewardPerBlock(_rewardPerBlock);
     }
 
@@ -392,27 +454,47 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
      * @notice Withdraws the remaining funds
      * @param _to The address where the funds will be sent
      */
-    function withdrawRemains(uint8 _rewardTokenId, address _to) external onlyOwner {
+    function withdrawRemains(uint8 _rewardTokenId, address _to)
+        external
+        onlyOwner
+    {
         require(block.number > endBlock, "Error: Pool not finished yet");
-        uint256 tokenBal = IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).balanceOf(address(this));
+        uint256 tokenBal = IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId])
+            .balanceOf(address(this));
         require(tokenBal > 0, "Error: No remaining funds");
-        IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).safeTransfer(_to, tokenBal);
+        IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).safeTransfer(
+            _to,
+            tokenBal
+        );
     }
 
     /*
      * @notice Deposits the reward token1 funds
      * @param _to The address where the funds will be sent
      */
-    function depositRewardTokenFunds(uint8 _rewardTokenId, uint256 _amount) external onlyOwner {
-        IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).safeTransfer(address(this), _amount);
+    function depositRewardTokenFunds(uint8 _rewardTokenId, uint256 _amount)
+        external
+        onlyOwner
+    {
+        IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).safeTransfer(
+            address(this),
+            _amount
+        );
     }
 
     /*
      * @notice Gets the reward per block for UI
      * @return reward per block
      */
-    function rewarPerBlockUI(uint8 _rewardToken) external view returns (uint256) {
-        return mapRewardPerBlock[_rewardToken].div(10**uint256(rewardToken1Decimals));
+    function rewarPerBlockUI(uint8 _rewardTokenId)
+        external
+        view
+        returns (uint256)
+    {
+        return
+            mapOfRewardPerBlock[_rewardTokenId].div(
+                10**uint256(mapOfRewardTokenDecimals[_rewardTokenId])
+            );
     }
 
     /*
@@ -420,27 +502,40 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
      * @param _user: user address
      * @return Pending reward for a given user
      */
-     // TODO: Apañar el REWARD DEBT para hacerlo generico
-    function pendingReward(uint8 _rewardTokenId, address _user) external view returns (uint256) {
+    function pendingReward(uint8 _rewardTokenId, address _user)
+        external
+        view
+        returns (uint256)
+    {
         UserInfo storage user = userInfo[_user];
+        uint256 rewardDebt = _rewardTokenId == TOKEN1
+            ? user.rewardDebt1
+            : user.rewardDebt2;
         uint256 stakedTokenSupply = stakedToken.balanceOf(address(this));
         if (block.number > lastUpdateBlock && stakedTokenSupply != 0) {
             uint256 multiplier = _getMultiplier(lastUpdateBlock, block.number);
-            uint256 tokenReward = multiplier.mul(mapRewardPerBlock[_rewardTokenId]);
-            uint256 adjustedPerShare = mapOfAccTokenPerShare[_rewardTokenId].add(
-                tokenReward.mul(mapOfPrecisionFactor[_rewardTokenId]).div(stakedTokenSupply)
+            uint256 tokenReward = multiplier.mul(
+                mapOfRewardPerBlock[_rewardTokenId]
             );
+            uint256 adjustedPerShare = mapOfAccTokenPerShare[_rewardTokenId]
+                .add(
+                    tokenReward.mul(mapOfPrecisionFactor[_rewardTokenId]).div(
+                        stakedTokenSupply
+                    )
+                );
             return
                 user
                     .amount
                     .mul(adjustedPerShare)
                     .div(mapOfPrecisionFactor[_rewardTokenId])
-                    .sub(user.rewardDebt1);
+                    .sub(rewardDebt);
         } else {
             return
-                user.amount.mul(accTokenPerShare1).div(mapOfPrecisionFactor[_rewardTokenId]).sub(
-                    user.rewardDebt1
-                );
+                user
+                    .amount
+                    .mul(mapOfAccTokenPerShare[_rewardTokenId])
+                    .div(mapOfPrecisionFactor[_rewardTokenId])
+                    .sub(rewardDebt);
         }
     }
 
@@ -466,7 +561,8 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
     function poolSetDuration(uint256 _durationBlocks) public onlyOwner {
         require(block.number < startBlock, "Pool has started");
         endBlock = startBlock.add(_durationBlocks);
-        poolCalcRewardPerBlock();
+        poolCalcRewardPerBlock(TOKEN1);
+        poolCalcRewardPerBlock(TOKEN2);
         emit NewEndBlock(endBlock);
     }
 
@@ -474,18 +570,9 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
      * @notice Calculates the rewardPerBlock of the pool
      * @dev This function is only callable by owner.
      */
-    function poolCalcRewardToken1PerBlock() public onlyOwner {
-        uint256 rewardBal = rewardToken1.balanceOf(address(this));
-        rewardToken1PerBlock = rewardBal.div(rewardDuration());
-    }
-
-    /*
-     * @notice Calculates the rewardPerBlock of the pool
-     * @dev This function is only callable by owner.
-     */
-    function poolCalcRewardPerBlock() public onlyOwner {
-        uint256 rewardBal = rewardToken2.balanceOf(address(this));
-        rewardToken2PerBlock = rewardBal.div(rewardDuration());
+    function poolCalcRewardPerBlock(uint8 _rewardTokenId) public onlyOwner {
+        uint256 rewardBal = IERC20Upgradeable(mapOfRewardTokens[_rewardTokenId]).balanceOf(address(this));
+        mapOfRewardPerBlock[_rewardTokenId] = rewardBal.div(rewardDuration());
     }
 
     /*
@@ -500,12 +587,16 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
      * @notice SendPending tokens to claimer
      * @param pending: amount to claim
      */
-    function _safeTokenTransfer(IERC20Upgradeable _rewardToken, address _to, uint256 _amount) internal {
-        uint256 rewardTokenBalance = _rewardToken.balanceOf(address(this));
+    function _safeTokenTransfer(
+        address _rewardToken,
+        address _to,
+        uint256 _amount
+    ) internal {
+        uint256 rewardTokenBalance = IERC20Upgradeable(_rewardToken).balanceOf(address(this));
         if (_amount > rewardTokenBalance) {
-            _rewardToken.safeTransfer(_to, rewardTokenBalance);
+            IERC20Upgradeable(_rewardToken).safeTransfer(_to, rewardTokenBalance);
         } else {
-            _rewardToken.safeTransfer(_to, _amount);
+            IERC20Upgradeable(_rewardToken).safeTransfer(_to, _amount);
         }
     }
 
@@ -525,13 +616,13 @@ contract GQGalacticAlliance is Initializable, OwnableUpgradeable, ReentrancyGuar
         }
 
         uint256 multiplier = _getMultiplier(lastUpdateBlock, block.number);
-        uint256 tokenReward1 = multiplier.mul(rewardToken1PerBlock);
-        uint256 tokenReward2 = multiplier.mul(rewardToken2PerBlock);
-        accTokenPerShare1 = accTokenPerShare1.add(
-            tokenReward1.mul(PRECISION_FACTOR_TOKEN1).div(stakedTokenSupply)
+        uint256 tokenReward1 = multiplier.mul(mapOfRewardPerBlock[TOKEN1]);
+        uint256 tokenReward2 = multiplier.mul(mapOfRewardPerBlock[TOKEN2]);
+        mapOfAccTokenPerShare[TOKEN1] = mapOfAccTokenPerShare[TOKEN1].add(
+            tokenReward1.mul(mapOfPrecisionFactor[TOKEN1]).div(stakedTokenSupply)
         );
-        accTokenPerShare2 = accTokenPerShare2.add(
-            tokenReward2.mul(PRECISION_FACTOR_TOKEN2).div(stakedTokenSupply)
+        mapOfAccTokenPerShare[TOKEN2] = mapOfAccTokenPerShare[TOKEN2].add(
+            tokenReward2.mul(mapOfPrecisionFactor[TOKEN2]).div(stakedTokenSupply)
         );
         lastUpdateBlock = block.number;
     }
