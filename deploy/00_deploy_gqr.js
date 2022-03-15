@@ -1,5 +1,5 @@
 module.exports = async ({ getNamedAccounts, deployments }) => {
-
+/*
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
@@ -46,7 +46,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
             feeAddress
         ]
     });
-    
+    */
 };
 
 module.exports.tags = ['GQGalacticReserve'];
