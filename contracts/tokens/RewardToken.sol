@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract RewardToken is ERC20, ERC20Burnable {
 
-    constructor() ERC20("LootBox Key", "KEY") {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {
         _mint(msg.sender, 1000000 * 1e18);
     }
 

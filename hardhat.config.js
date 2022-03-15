@@ -1,11 +1,11 @@
-import * as dotenv from "dotenv";
-dotenv.config({ path: __dirname +'/.env' });
-import { task } from "hardhat/config";
-import "@nomiclabs/hardhat-waffle"
-import "@nomiclabs/hardhat-etherscan";
-import "hardhat-gas-reporter";
-import 'hardhat-deploy';
-import "solidity-coverage";
+require('dotenv').config()
+require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-etherscan");
+require("@nomiclabs/hardhat-ethers");
+require("hardhat-deploy");
+require("hardhat-deploy-ethers");
+//require("solidity-coverage");
+//require("hardhat-gas-reporter");
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
