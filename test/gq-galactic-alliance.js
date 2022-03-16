@@ -62,8 +62,8 @@ describe("DEX", function () {
     });
 
     it("should calculate reward correctly for reward token1", async () => {
-      console.log(await gqGalacticAlliance.owner());
       await gqGalacticAlliance.connect(owner).poolCalcRewardPerBlock(TOKEN1);
+      console.log(await gqGalacticAlliance.mapOfRewardPerBlock(TOKEN1));
     });
   });
 });

@@ -48,7 +48,7 @@ contract GQGalacticAlliance is
     mapping(uint8 => uint256) public mapOfAccTokenPerShare;
 
     // REWARD tokens created per block.
-    mapping(uint8 => uint256) mapOfRewardPerBlock;
+    mapping(uint8 => uint256) public mapOfRewardPerBlock;
 
     // The precision factor for reward tokens
     mapping(uint8 => uint256) public mapOfPrecisionFactor;
