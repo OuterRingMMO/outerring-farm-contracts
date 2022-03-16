@@ -104,6 +104,7 @@ contract GQGalacticAlliance is
         uint256 _withdrawFee,
         address _feeAddress
     ) public initializer {
+        __Ownable_init();
         stakedToken = _stakedToken;
         mapOfRewardTokens[TOKEN1] = _rewardToken1;
         mapOfRewardTokens[TOKEN2] = _rewardToken2;
