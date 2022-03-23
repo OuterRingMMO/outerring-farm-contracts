@@ -164,7 +164,7 @@ contract GQGalacticAlliance is
             uint256 pendingToken2 = user
                 .amount
                 .mul(mapOfAccTokenPerShare[TOKEN2])
-                .div(mapOfPrecisionFactor[TOKEN1])
+                .div(mapOfPrecisionFactor[TOKEN2])
                 .sub(user.rewardDebt2);
 
             if (pendingToken2 > 0) {
