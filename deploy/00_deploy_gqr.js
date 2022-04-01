@@ -1,19 +1,19 @@
 module.exports = async ({ getNamedAccounts, deployments }) => {
-/*
+
     function sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
-    
-    let stakedTokenAddress = '0xF700D4c708C2be1463E355F337603183D20E0808';
-    let rewardTokenAddress = '0x227a3EF4d41d0215123f3197Faa087Bf71d2236a';
-    let startBlock = 15740550;
-    let endBlock = 18278000;
+
+    let stakedTokenAddress = '0x477bC8d23c634C154061869478bce96BE6045D12';
+    let rewardTokenAddress = '0xF700D4c708C2be1463E355F337603183D20E0808';
+    let startBlock = 16655611;
+    let endBlock = 19207611;
     let lockUpDuration = 7776000;
     let withdrawFee = 500;
-    let feeAddress = '0xaAF6B6f4c3a20cae39A25fBcD9617822cd8bf1C7';
+    let feeAddress = '0xaaf6b6f4c3a20cae39a25fbcd9617822cd8bf1c7';
 
     const gqGalacticReserve = await deploy('GQGalacticReserve', {
         from: deployer,
@@ -46,7 +46,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
             feeAddress
         ]
     });
-    */
+
 };
 
 module.exports.tags = ['GQGalacticReserve'];
