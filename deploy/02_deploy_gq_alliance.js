@@ -3,21 +3,21 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
     
-    let stakedTokenAddress = '0xe734006Fd9b3C5F1e5cF816C19e63DFAf666514C';
-    let rewardToken1Address = '0xEF7d8c89E281f123E14c30868dCdFD59E51EE20F';
-    let rewardToken2Address = '0x26D4e2f3943Fe603a8eCEB0A92019A2aAFF220ee';
-    let startBlock = 17641564;
-    let endBlock = 20233564;
-    let lockUpDuration = 2592000;
-    let withdrawFee = 500;
-    let feeAddress = '0x6080903C0017d0A6cf7C861910Cbc805Ee62740A';
+    let stakedTokenAddress = '0xF700D4c708C2be1463E355F337603183D20E0808';
+    let rewardToken1Address = '0x477bC8d23c634C154061869478bce96BE6045D12';
+    let rewardToken2Address = '0x227a3ef4d41d0215123f3197faa087bf71d2236a';
+    let startBlock = 16655611;
+    let endBlock = 19207611;
+    let lockUpDuration = 7776000;
+    let withdrawFee = 300;
+    let feeAddress = '0xaaf6b6f4c3a20cae39a25fbcd9617822cd8bf1c7 ';
 
     const gqGalacticAlliance = await deploy('GQGalacticAlliance', {
         from: deployer,
         args: [],
         log: true,
         proxy: {
-            proxyContract: 'OpenZeppelinTransparentProxy',
+            proxyContract: 'OpenZeppelinTransparentProxy'
         }
     });
 
