@@ -15,7 +15,6 @@ contract DexFarming is
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    using SafeMathUpgradeable for uint256;
     using SafeERC20Upgradeable for IResource;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
@@ -99,7 +98,7 @@ contract DexFarming is
 
     /// @notice Gets the length for the pool info array
     /// @return poolInfo length
-    function poolLenght() external view returns (uint256) {
+    function poolLength() external view returns (uint256) {
         return poolInfo.length;
     }
 
@@ -148,8 +147,8 @@ contract DexFarming is
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 resourceReward = multiplier.mul(resourcePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accResourcePerShare = accResourcePerShare.add(resourceReward.mul(1e12).div(lpSupply));
+            uint256 resourceReward = multiplier * resourcePerBlock * pool.allocPoint / totalAllocPoint;
+            accResourcePerShare = accResourcePerShare + resourceReward * 1e12 / lpSupply;
         }
         return user.amount * accResourcePerShare / 1e12 - user.rewardDebt;
     }
