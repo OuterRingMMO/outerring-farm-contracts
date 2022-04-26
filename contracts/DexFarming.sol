@@ -43,7 +43,7 @@ contract DexFarming is
     }
 
     // Interface for resource token
-    IResource resource;
+    IResource public resource;
     // Reward per block in resource token
     uint256 public resourcePerBlock;
     // Bonus multiplier 
