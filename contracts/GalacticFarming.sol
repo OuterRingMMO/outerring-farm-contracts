@@ -15,6 +15,7 @@ contract GalacticFarming is
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    using SafeMathUpgradeable for uint256;
     using SafeERC20Upgradeable for IResource;
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
@@ -112,7 +113,7 @@ contract GalacticFarming is
         massUpdatePools();
         require(!addedPools[address(_lpToken)], "add: Duplicate pool");
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
-        totalAllocPoint = totalAllocPoint + _allocPoint;
+        totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolInfo.push(PoolInfo({
             lpToken: _lpToken,
             allocPoint: _allocPoint,
@@ -128,7 +129,7 @@ contract GalacticFarming is
     /// @param _allocPoint The new alloc point quantity
     function set(uint256 _pid, uint256 _allocPoint) external onlyOwner {
         massUpdatePools();
-        totalAllocPoint = (totalAllocPoint - poolInfo[_pid].allocPoint) + _allocPoint;
+        totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(_allocPoint);
         poolInfo[_pid].allocPoint = _allocPoint;
     }
 
@@ -137,7 +138,7 @@ contract GalacticFarming is
     /// @param _to To block
     /// @return Multiplier value
     function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
-        return (_to - _from) * BONUS_MULTIPLIER;
+        return _to.sub(_from).mul(BONUS_MULTIPLIER);
     }
 
     /// @notice Function to see pending tokens
@@ -150,10 +151,10 @@ contract GalacticFarming is
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 resourceReward = multiplier * resourcePerBlock * pool.allocPoint / totalAllocPoint;
-            accResourcePerShare = accResourcePerShare + (resourceReward * 1e12 / lpSupply);
+            uint256 resourceReward = multiplier.mul(resourcePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+            accResourcePerShare = accResourcePerShare.add(resourceReward.mul(1e12).div(lpSupply));
         }
-        return (user.amount * accResourcePerShare / 1e12) - user.rewardDebt;
+        return user.amount.mul(accResourcePerShare).div(1e12).sub(user.rewardDebt);
     }
 
     /// @notice Update reward variables for all pools
@@ -175,9 +176,9 @@ contract GalacticFarming is
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 resourceReward = multiplier * resourcePerBlock * pool.allocPoint / totalAllocPoint;
+        uint256 resourceReward = multiplier.mul(resourcePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         resource.mint(address(this), resourceReward);
-        pool.accResourcePerShare = pool.accResourcePerShare + (resourceReward * 1e12 / lpSupply);
+        pool.accResourcePerShare = pool.accResourcePerShare.add(resourceReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
@@ -190,16 +191,16 @@ contract GalacticFarming is
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
         if(user.amount > 0) {
-            uint256 pending = (user.amount * pool.accResourcePerShare / 1e12) - user.rewardDebt;
+            uint256 pending = user.amount.mul(pool.accResourcePerShare).div(1e12).sub(user.rewardDebt);
             if(pending > 0) {
                 safeResourceTransfer(msg.sender, pending);
             }
         }
         if(_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.amount = user.amount + _amount;
+            user.amount = user.amount.add(_amount);
         }
-        user.rewardDebt = user.amount * pool.accResourcePerShare / 1e12;
+        user.rewardDebt = user.amount.mul(pool.accResourcePerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -213,15 +214,15 @@ contract GalacticFarming is
         require(user.amount >= _amount, "withdraw: not good amount");
 
         updatePool(_pid);
-        uint256 pending = (user.amount * pool.accResourcePerShare / 1e12) - user.rewardDebt;
+        uint256 pending = user.amount.mul(pool.accResourcePerShare).div(1e12).sub(user.rewardDebt);
         if(pending > 0) {
             safeResourceTransfer(msg.sender, pending);
         }
         if(_amount > 0) {
-            user.amount = user.amount - _amount;
+            user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount * pool.accResourcePerShare / 1e12;
+        user.rewardDebt = user.amount.mul(pool.accResourcePerShare).div(1e12);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
