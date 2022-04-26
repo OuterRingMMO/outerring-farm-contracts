@@ -10,7 +10,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-contract DexFarming is
+contract GalacticFarming is
     Initializable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable
@@ -43,7 +43,7 @@ contract DexFarming is
     }
 
     // Interface for resource token
-    IResource resource;
+    IResource public resource;
     // Reward per block in resource token
     uint256 public resourcePerBlock;
     // Bonus multiplier 
@@ -56,6 +56,8 @@ contract DexFarming is
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     // LP tokens added to the pool
     mapping(address => bool) public addedPools;
+    // LP tokens position by address
+    mapping(address => uint256) public positionPoolsByLP;
 
     // Number that determines the total allocation points
     uint256 public totalAllocPoint = 0;
@@ -118,6 +120,7 @@ contract DexFarming is
             accResourcePerShare: 0
         }));
         addedPools[address(_lpToken)] = true;
+        positionPoolsByLP[address(_lpToken)] = poolInfo.length - 1;
     }
 
     /// @notice Update alloc points for the given pool
