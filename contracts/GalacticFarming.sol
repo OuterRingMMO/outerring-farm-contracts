@@ -128,7 +128,7 @@ contract GalacticFarming is
     /// @param _allocPoint The new alloc point quantity
     function set(uint256 _pid, uint256 _allocPoint) external onlyOwner {
         massUpdatePools();
-        totalAllocPoint = totalAllocPoint - poolInfo[_pid].allocPoint + _allocPoint;
+        totalAllocPoint = (totalAllocPoint - poolInfo[_pid].allocPoint) + _allocPoint;
         poolInfo[_pid].allocPoint = _allocPoint;
     }
 
@@ -151,9 +151,9 @@ contract GalacticFarming is
         if (block.number > pool.lastRewardBlock && lpSupply != 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 resourceReward = multiplier * resourcePerBlock * pool.allocPoint / totalAllocPoint;
-            accResourcePerShare = accResourcePerShare + resourceReward * 1e12 / lpSupply;
+            accResourcePerShare = accResourcePerShare + (resourceReward * 1e12 / lpSupply);
         }
-        return user.amount * accResourcePerShare / 1e12 - user.rewardDebt;
+        return (user.amount * accResourcePerShare / 1e12) - user.rewardDebt;
     }
 
     /// @notice Update reward variables for all pools
@@ -190,7 +190,7 @@ contract GalacticFarming is
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
         if(user.amount > 0) {
-            uint256 pending = user.amount * pool.accResourcePerShare / 1e12 - user.rewardDebt;
+            uint256 pending = (user.amount * pool.accResourcePerShare / 1e12) - user.rewardDebt;
             if(pending > 0) {
                 safeResourceTransfer(msg.sender, pending);
             }
@@ -213,7 +213,7 @@ contract GalacticFarming is
         require(user.amount >= _amount, "withdraw: not good amount");
 
         updatePool(_pid);
-        uint256 pending = user.amount * pool.accResourcePerShare / 1e12 - user.rewardDebt;
+        uint256 pending = (user.amount * pool.accResourcePerShare / 1e12) - user.rewardDebt;
         if(pending > 0) {
             safeResourceTransfer(msg.sender, pending);
         }
