@@ -48,7 +48,7 @@ contract GalacticFarming is
     // Reward per block in resource token
     uint256 public resourcePerBlock;
     // Bonus multiplier 
-    uint256 BONUS_MULTIPLIER = 1;
+    uint256 BONUS_MULTIPLIER;
 
     // Pool data
     PoolInfo[] public poolInfo;
@@ -61,7 +61,7 @@ contract GalacticFarming is
     mapping(address => uint256) public positionPoolsByLP;
 
     // Number that determines the total allocation points
-    uint256 public totalAllocPoint = 0;
+    uint256 public totalAllocPoint;
     // Block to set the reward start block
     uint256 public startBlock;
 
@@ -91,6 +91,7 @@ contract GalacticFarming is
         resource = _resource;
         resourcePerBlock = _resourcePerBlock;
         startBlock = _startBlock;
+        BONUS_MULTIPLIER = 1;
     }
 
     /// @notice Updates bonus multiplier
