@@ -229,7 +229,7 @@ contract GalacticFarming is
 
     /// @notice Withdraw without caring about rewards. EMERGENCY ONLY.
     /// @param _pid The pool identifier where user withdraws
-    function emergencyWithdraw(uint256 _pid) public {
+    function emergencyWithdraw(uint256 _pid) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         pool.lpToken.safeTransfer(address(msg.sender), user.amount);
