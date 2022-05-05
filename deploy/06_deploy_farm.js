@@ -7,9 +7,9 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
     
-    const resource = '';
-    const resourcePerBlock = '';
-    const startBlock = ;
+    const resource = '0x892F23E32B82EF0d5394cF33dcD4dFf7f4b274B0';
+    const resourcePerBlock = '2000000000000000000';
+    const startBlock = 17538800;
 
     const galacticFarming = await deploy('GalacticFarming', {
         from: deployer,
