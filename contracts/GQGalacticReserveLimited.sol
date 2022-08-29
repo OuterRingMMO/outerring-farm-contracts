@@ -70,6 +70,7 @@ contract GQGalacticReserveLimited is Ownable, ReentrancyGuard {
     event RewardsStop(uint256 blockNumber);
     event Withdraw(address indexed user, uint256 amount);
     event NewLockUpDuration(uint256 lockUpDuration);
+    event NewMaxStakeAmount(uint256 maxStakeAmount);
 
     /*
      * @notice Constructor of the contract
@@ -325,6 +326,16 @@ contract GQGalacticReserveLimited is Ownable, ReentrancyGuard {
     function setLockUpDuration(uint256 _lockUpDuration) external onlyOwner {
         lockUpDuration = _lockUpDuration;
         emit NewLockUpDuration(lockUpDuration);
+    }
+
+    /*
+     * @notice Sets the max stake amount
+     * @param _maxStakeAmount: The new max stake amount
+     * @dev This function is only callable by owner.
+     */
+    function setMaxStakeAmount(uint256 _maxStakeAmount) external onlyOwner {
+        maxStakeAmount = _maxStakeAmount;
+        emit NewMaxStakeAmount(maxStakeAmount);
     }
 
     /*

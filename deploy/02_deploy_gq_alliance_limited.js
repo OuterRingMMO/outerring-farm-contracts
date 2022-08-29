@@ -6,14 +6,14 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
-    let stakedTokenAddress = '0xAC1F5e57d53e9Ac3c092EB876e46C235df95672A';
-    let rewardToken1Address = '0x227a3EF4d41d0215123f3197Faa087Bf71d2236a';
-    let rewardToken2Address = '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56';
-    let startBlock = 18275534;
-    let endBlock = 20896334;
-    let lockUpDuration = 2592000;
-    let withdrawFee = 500;
-    let feeAddress = '0xaaf6b6f4c3a20cae39a25fbcd9617822cd8bf1c7';
+    let stakedTokenAddress = '0xF700D4c708C2be1463E355F337603183D20E0808';
+    let rewardToken1Address = '0x94b69263FCA20119Ae817b6f783Fc0F13B02ad50';
+    let rewardToken2Address = '0x227a3EF4d41d0215123f3197Faa087Bf71d2236a';
+    let startBlock = 19968800;
+    let endBlock = 20810000;
+    let lockUpDuration = 0;
+    let withdrawFee = 0;
+    let feeAddress = '0xaAF6B6f4c3a20cae39A25fBcD9617822cd8bf1C7';
     let maxStakeAmount = parseUnits("49000", "ether");
 
     const gqGalacticAlliance = await deploy('GQGalacticAllianceLimited', {
