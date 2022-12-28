@@ -5,10 +5,10 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
     const { deploy } = deployments;
     const { deployer } = await getNamedAccounts();
 
-    let stakedTokenAddress = '0xF700D4c708C2be1463E355F337603183D20E0808';
-    let rewardTokenAddress = '0x3Dde01a467f99E58f996de835058C767A3edd2AC';
-    let startBlock = 21326800;
-    let endBlock = 23054800;
+    let stakedTokenAddress = '0xcC3A3Bc1d76Df321f94716E88224638C439267aa';
+    let rewardTokenAddress = '0x557800E817a46AF24E168B026CfA6064ee93C80D';
+    let startBlock = 24325450;
+    let endBlock = 29509450;
     let lockUpDuration = 0;
     let withdrawFee = 0;
     let feeAddress = '0xaaf6b6f4c3a20cae39a25fbcd9617822cd8bf1c7';
